@@ -98,9 +98,15 @@ const ui = {
   playlistAddInput: document.getElementById("playlist-add-input"),
   playlistLibrary: document.getElementById("playlist-library"),
   playlistQueue: document.getElementById("playlist-queue"),
+  libraryCount: document.getElementById("library-count"),
   queueClearBtn: document.getElementById("queue-clear-btn"),
   queuePlayBtn: document.getElementById("queue-play-btn"),
   queueStopBtn: document.getElementById("queue-stop-btn"),
+  nowTitleMini: document.getElementById("now-title-mini"),
+  nowPosMini: document.getElementById("now-pos-mini"),
+  nowDurMini: document.getElementById("now-dur-mini"),
+  nowPrevMiniBtn: document.getElementById("now-prev-btn-mini"),
+  nowNextMiniBtn: document.getElementById("now-next-btn-mini"),
   nowTitle: document.getElementById("now-title"),
   nowSubtitle: document.getElementById("now-subtitle"),
   nowSeek: document.getElementById("now-seek"),
@@ -179,6 +185,8 @@ function wirePlaylistControls() {
   ui.nowPrevBtn.addEventListener("click", playPreviousQueueTrack);
   ui.nowPlayBtn.addEventListener("click", toggleNowPlayPause);
   ui.nowNextBtn.addEventListener("click", playNextQueueTrack);
+  ui.nowPrevMiniBtn.addEventListener("click", playPreviousQueueTrack);
+  ui.nowNextMiniBtn.addEventListener("click", playNextQueueTrack);
   ui.nowSeek.addEventListener("input", () => seekNowPlaying(Number(ui.nowSeek.value)));
 }
 
@@ -401,6 +409,7 @@ function renderPlaylistPanels() {
 function renderPlaylistLibrary() {
   if (!ui.playlistLibrary) return;
   ui.playlistLibrary.innerHTML = "";
+  if (ui.libraryCount) ui.libraryCount.textContent = `${state.playlistLibrary.length} track${state.playlistLibrary.length === 1 ? "" : "s"}`;
   state.playlistLibrary.forEach((track) => {
     const row = document.createElement("div");
     row.className = "list-row library-row";
@@ -630,21 +639,27 @@ function startNowProgressTimer() {
 function updateNowPlaying(track, queueIndex) {
   const posMs = currentNowPositionMs();
   ui.nowTitle.textContent = track.name || "Unknown";
+  if (ui.nowTitleMini) ui.nowTitleMini.textContent = track.name || "Unknown";
   ui.nowSubtitle.textContent = `Queue ${queueIndex + 1} of ${state.playlistQueue.length}`;
   ui.nowSeek.max = String(Math.max(0, track.durationMs));
   ui.nowSeek.value = String(Math.max(0, Math.min(track.durationMs, Math.floor(posMs))));
   ui.nowPos.textContent = formatClock(posMs);
   ui.nowDur.textContent = formatClock(track.durationMs);
+  if (ui.nowPosMini) ui.nowPosMini.textContent = formatClock(posMs);
+  if (ui.nowDurMini) ui.nowDurMini.textContent = formatClock(track.durationMs);
   ui.nowPlayBtn.textContent = state.playlistPlayer.isPlaying ? "Pause" : "Play";
 }
 
 function updateNowPlayingEmpty() {
   ui.nowTitle.textContent = "No track loaded";
+  if (ui.nowTitleMini) ui.nowTitleMini.textContent = "No track loaded";
   ui.nowSubtitle.textContent = "Open Playlist mode to add tracks";
   ui.nowSeek.max = "0";
   ui.nowSeek.value = "0";
   ui.nowPos.textContent = "0:00";
   ui.nowDur.textContent = "0:00";
+  if (ui.nowPosMini) ui.nowPosMini.textContent = "00:00";
+  if (ui.nowDurMini) ui.nowDurMini.textContent = "00:00";
   ui.nowPlayBtn.textContent = "Play";
 }
 

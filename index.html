@@ -12,55 +12,99 @@
       <button class="mode-btn" data-mode="now">Now Playing</button>
       <button class="mode-btn" data-mode="playlist">Playlist</button>
       <button class="mode-btn active" data-mode="editor">Editor</button>
+      <button id="system-check-btn" class="sys-btn">System Check</button>
     </header>
 
     <section id="panel-now" class="panel">
-      <div class="now-wrap">
-        <div class="now-art">
-          <div class="now-glow"></div>
-          <div class="now-initials">KIMIX</div>
+      <div class="now-wrap now-style">
+        <div class="now-head">
+          <h1>KIMIX</h1>
+          <div>Browse · Favorites</div>
         </div>
-        <div class="now-info">
-          <h1 id="now-title">No track loaded</h1>
+        <div class="now-center">
+          <div class="now-kicker">Now Playing</div>
+          <h2 id="now-title">No track loaded</h2>
           <p id="now-subtitle">Open Playlist mode to add tracks</p>
-          <div class="now-progress">
-            <input id="now-seek" type="range" min="0" max="0" value="0">
-            <div class="now-time">
-              <span id="now-pos">0:00</span>
-              <span id="now-dur">0:00</span>
-            </div>
-          </div>
-          <div class="now-controls">
-            <button id="now-prev-btn">Prev</button>
-            <button id="now-play-btn">Play</button>
-            <button id="now-next-btn">Next</button>
-          </div>
+        </div>
+        <div class="now-progress-card">
+          <input id="now-seek" type="range" min="0" max="0" value="0">
+        </div>
+        <div class="now-foot">
+          <div><span id="now-pos">0:00</span> / <span id="now-dur">0:00</span></div>
+          <div>Relax and enjoy the music</div>
+        </div>
+        <div class="now-controls">
+          <button id="now-prev-btn">⏮</button>
+          <button id="now-play-btn">⏯</button>
+          <button id="now-next-btn">⏭</button>
+          <label>Sleep
+            <select>
+              <option>0 min</option>
+              <option>15 min</option>
+              <option>30 min</option>
+            </select>
+          </label>
+          <button>Set</button>
+          <input type="range" min="0" max="100" value="80">
         </div>
       </div>
     </section>
 
     <section id="panel-playlist" class="panel">
-      <div class="playlist-layout">
-        <div class="playlist-card">
-          <div class="playlist-head">
-            <h2>Library</h2>
-            <label class="file-btn">Add Tracks
-              <input id="playlist-add-input" type="file" accept="audio/*" multiple>
-            </label>
+      <div class="playlist-frame">
+        <div class="playlist-top">
+          <div>
+            <h2>KIMIX Playlist</h2>
+            <p>Listening-first mode. Import your music and press play.</p>
           </div>
-          <div id="playlist-library" class="list"></div>
+          <div>Library ready</div>
         </div>
-        <div class="playlist-card">
-          <div class="playlist-head">
-            <h2>Queue</h2>
-            <div class="playlist-actions">
+
+        <div class="playlist-layout">
+          <div class="playlist-card player-card">
+            <div class="now-playing-mini">
+              <span>NOW PLAYING</span>
+              <strong id="now-title-mini">No track loaded</strong>
+            </div>
+            <div class="mini-controls">
+              <button id="now-prev-btn-mini">Prev</button>
+              <button id="queue-play-btn">Play</button>
+              <button id="now-next-btn-mini">Next</button>
+              <button>Share</button>
+              <label>Volume <input type="range" min="0" max="100" value="80"></label>
+              <label><input type="checkbox" checked> Crossfade</label>
+              <span>2 s</span>
+            </div>
+            <div class="playlist-art"></div>
+            <div class="queue-wrap">
+              <div id="playlist-queue" class="list"></div>
+              <div class="queue-times"><span id="now-pos-mini">00:00</span> / <span id="now-dur-mini">00:00</span></div>
+            </div>
+            <div class="playlist-footer">
+              <button id="queue-stop-btn">Stop</button>
               <button id="queue-clear-btn">Clear</button>
             </div>
           </div>
-          <div id="playlist-queue" class="list"></div>
-          <div class="playlist-footer">
-            <button id="queue-play-btn">Play Queue</button>
-            <button id="queue-stop-btn">Stop</button>
+
+          <div class="playlist-card library-card">
+            <div class="playlist-head">
+              <h3>Tracks</h3>
+              <span id="library-count">0 tracks</span>
+            </div>
+            <div class="library-filters">
+              <select>
+                <option>My Library</option>
+              </select>
+              <label><input type="checkbox"> Favorites Only</label>
+            </div>
+            <div class="playlist-actions">
+              <label class="file-btn">Add Tracks
+                <input id="playlist-add-input" type="file" accept="audio/*" multiple>
+              </label>
+              <button disabled>Scan Folder</button>
+              <button disabled>Toggle Favorite</button>
+            </div>
+            <div id="playlist-library" class="list"></div>
           </div>
         </div>
       </div>
