@@ -4,7 +4,10 @@ on:
   push:
     branches: ["main"]
     paths:
-      - "web/**"
+      - "index.html"
+      - "styles.css"
+      - "app.js"
+      - ".nojekyll"
       - ".github/workflows/deploy-web.yml"
   workflow_dispatch:
 
@@ -30,10 +33,18 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
+      - name: Build Pages artifact
+        run: |
+          mkdir -p .site
+          cp index.html .site/index.html
+          cp styles.css .site/styles.css
+          cp app.js .site/app.js
+          cp .nojekyll .site/.nojekyll
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./web
+          path: ./.site
 
       - name: Deploy to GitHub Pages
         id: deployment
