@@ -9,12 +9,12 @@
 <body>
   <div id="app">
     <header class="mode-header">
-      <button class="mode-btn active" data-mode="now">Now Playing</button>
+      <button class="mode-btn" data-mode="now">Now Playing</button>
       <button class="mode-btn" data-mode="playlist">Playlist</button>
-      <button class="mode-btn" data-mode="editor">Editor</button>
+      <button class="mode-btn active" data-mode="editor">Editor</button>
     </header>
 
-    <section id="panel-now" class="panel active">
+    <section id="panel-now" class="panel">
       <div class="hero">
         <h1>KIMIX</h1>
         <p>Now Playing mode in browser build.</p>
@@ -28,7 +28,7 @@
       </div>
     </section>
 
-    <section id="panel-editor" class="panel">
+    <section id="panel-editor" class="panel active">
       <div class="toolbar toolbar-top">
         <button id="new-project-btn">New Project</button>
         <label class="file-btn">Open Project
@@ -124,6 +124,6 @@
     </section>
   </div>
 
-  <script src="./app.js" type="module"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
