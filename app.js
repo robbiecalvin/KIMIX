@@ -23,6 +23,9 @@ const state = {
   bufferMap: new Map(),
   nextBufferId: 1,
   nextClipId: 1,
+  nextPlaylistTrackId: 1,
+  playlistLibrary: [],
+  playlistQueue: [],
   audioContext: null,
   playback: {
     isPlaying: false,
@@ -35,6 +38,16 @@ const state = {
   },
   autosaveTimer: null,
   loading: false,
+  playlistPlayer: {
+    isPlaying: false,
+    currentQueueIndex: -1,
+    currentSource: null,
+    progressTimer: null,
+    startPerfMs: 0,
+    startOffsetMs: 0,
+    pausedOffsetMs: 0,
+    durationMs: 0,
+  },
 };
 
 const ui = {
@@ -82,6 +95,20 @@ const ui = {
   splitBtn: document.getElementById("split-btn"),
   timelineScroll: document.getElementById("timeline-scroll"),
   timelineCanvas: document.getElementById("timeline-canvas"),
+  playlistAddInput: document.getElementById("playlist-add-input"),
+  playlistLibrary: document.getElementById("playlist-library"),
+  playlistQueue: document.getElementById("playlist-queue"),
+  queueClearBtn: document.getElementById("queue-clear-btn"),
+  queuePlayBtn: document.getElementById("queue-play-btn"),
+  queueStopBtn: document.getElementById("queue-stop-btn"),
+  nowTitle: document.getElementById("now-title"),
+  nowSubtitle: document.getElementById("now-subtitle"),
+  nowSeek: document.getElementById("now-seek"),
+  nowPos: document.getElementById("now-pos"),
+  nowDur: document.getElementById("now-dur"),
+  nowPrevBtn: document.getElementById("now-prev-btn"),
+  nowPlayBtn: document.getElementById("now-play-btn"),
+  nowNextBtn: document.getElementById("now-next-btn"),
 };
 ui.ctx = ui.timelineCanvas.getContext("2d");
 
@@ -90,12 +117,15 @@ init();
 function init() {
   wireModeButtons();
   wireEditorControls();
+  wirePlaylistControls();
   loadAutosave();
   if (!state.currentProjectName) {
     createProject("Project 1");
   }
   refreshProjectSelect();
   switchProject(state.currentProjectName);
+  renderPlaylistPanels();
+  updateNowPlayingEmpty();
   renderTimeline();
 }
 
@@ -106,6 +136,7 @@ function wireModeButtons() {
       Object.entries(ui.panels).forEach(([name, panel]) => {
         panel.classList.toggle("active", name === btn.dataset.mode);
       });
+      renderPlaylistPanels();
     });
   });
 }
@@ -136,6 +167,19 @@ function wireEditorControls() {
   ui.timelineCanvas.addEventListener("mousedown", onTimelineMouseDown);
   ui.timelineCanvas.addEventListener("mousemove", onTimelineMouseMove);
   window.addEventListener("mouseup", onTimelineMouseUp);
+}
+
+function wirePlaylistControls() {
+  ui.playlistAddInput.addEventListener("change", onAddPlaylistTracks);
+  ui.playlistLibrary.addEventListener("click", onPlaylistLibraryClick);
+  ui.playlistQueue.addEventListener("click", onPlaylistQueueClick);
+  ui.queueClearBtn.addEventListener("click", clearPlaylistQueue);
+  ui.queuePlayBtn.addEventListener("click", playQueueFromStart);
+  ui.queueStopBtn.addEventListener("click", stopPlaylistPlayback);
+  ui.nowPrevBtn.addEventListener("click", playPreviousQueueTrack);
+  ui.nowPlayBtn.addEventListener("click", toggleNowPlayPause);
+  ui.nowNextBtn.addEventListener("click", playNextQueueTrack);
+  ui.nowSeek.addEventListener("input", () => seekNowPlaying(Number(ui.nowSeek.value)));
 }
 
 function createProject(name) {
@@ -265,6 +309,7 @@ function refreshProjectSelect() {
 
 function switchProject(name) {
   stopPlayback();
+  stopPlaylistPlayback(false);
   if (!name || !state.projects[name]) return;
   state.currentProjectName = name;
   const project = currentProject();
@@ -292,6 +337,7 @@ async function onAddAudioFiles(e) {
       const arr = await file.arrayBuffer();
       const decoded = await audioContext.decodeAudioData(arr.slice(0));
       const bufferId = registerBuffer(decoded);
+      addTrackToLibrary(file.name, bufferId);
       project.tracks.push({
         name: `Track ${project.tracks.length}`,
         muted: false,
@@ -306,12 +352,316 @@ async function onAddAudioFiles(e) {
   e.target.value = "";
   markProjectDirty();
   refreshAll();
+  renderPlaylistPanels();
 }
 
 function registerBuffer(audioBuffer) {
   const id = state.nextBufferId++;
   state.bufferMap.set(id, audioBuffer);
   return id;
+}
+
+function addTrackToLibrary(name, bufferId) {
+  const buffer = state.bufferMap.get(bufferId);
+  if (!buffer) return null;
+  const entry = {
+    id: state.nextPlaylistTrackId++,
+    name,
+    bufferId,
+    durationMs: Math.floor(buffer.duration * 1000),
+  };
+  state.playlistLibrary.push(entry);
+  return entry;
+}
+
+async function onAddPlaylistTracks(e) {
+  const files = [...(e.target.files || [])];
+  if (!files.length) return;
+  const audioContext = getAudioContext();
+  for (const file of files) {
+    try {
+      const arr = await file.arrayBuffer();
+      const decoded = await audioContext.decodeAudioData(arr.slice(0));
+      const bufferId = registerBuffer(decoded);
+      addTrackToLibrary(file.name, bufferId);
+    } catch (_err) {
+      setStatus(`Failed to import ${file.name} to playlist.`);
+    }
+  }
+  e.target.value = "";
+  scheduleAutosave();
+  renderPlaylistPanels();
+}
+
+function renderPlaylistPanels() {
+  renderPlaylistLibrary();
+  renderPlaylistQueue();
+}
+
+function renderPlaylistLibrary() {
+  if (!ui.playlistLibrary) return;
+  ui.playlistLibrary.innerHTML = "";
+  state.playlistLibrary.forEach((track) => {
+    const row = document.createElement("div");
+    row.className = "list-row library-row";
+    row.innerHTML = `
+      <div>
+        <div>${escapeHtml(track.name)}</div>
+        <div class="meta">${formatSeconds(track.durationMs)} s</div>
+      </div>
+      <button data-action="add" data-track-id="${track.id}">Add</button>
+      <button data-action="play" data-track-id="${track.id}">Play</button>
+      <span></span>
+    `;
+    ui.playlistLibrary.appendChild(row);
+  });
+}
+
+function renderPlaylistQueue() {
+  if (!ui.playlistQueue) return;
+  ui.playlistQueue.innerHTML = "";
+  state.playlistQueue.forEach((trackId, idx) => {
+    const track = state.playlistLibrary.find((item) => item.id === trackId);
+    if (!track) return;
+    const active = idx === state.playlistPlayer.currentQueueIndex ? " active" : "";
+    const row = document.createElement("div");
+    row.className = `list-row queue-row${active}`;
+    row.innerHTML = `
+      <div>
+        <div>${escapeHtml(track.name)}</div>
+        <div class="meta">${formatSeconds(track.durationMs)} s</div>
+      </div>
+      <button data-action="up" data-index="${idx}">Up</button>
+      <button data-action="down" data-index="${idx}">Down</button>
+      <button data-action="remove" data-index="${idx}">Remove</button>
+      <button data-action="play-idx" data-index="${idx}">Play</button>
+    `;
+    ui.playlistQueue.appendChild(row);
+  });
+}
+
+function onPlaylistLibraryClick(e) {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const trackId = Number(btn.dataset.trackId);
+  if (!trackId) return;
+  if (action === "add") {
+    state.playlistQueue.push(trackId);
+    scheduleAutosave();
+    renderPlaylistQueue();
+    return;
+  }
+  if (action === "play") {
+    const idx = state.playlistQueue.indexOf(trackId);
+    if (idx >= 0) playQueueAt(idx, 0);
+    else {
+      state.playlistQueue.push(trackId);
+      playQueueAt(state.playlistQueue.length - 1, 0);
+    }
+  }
+}
+
+function onPlaylistQueueClick(e) {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const idx = Number(btn.dataset.index);
+  if (Number.isNaN(idx) || idx < 0 || idx >= state.playlistQueue.length) return;
+
+  if (action === "remove") {
+    const removedCurrent = idx === state.playlistPlayer.currentQueueIndex;
+    state.playlistQueue.splice(idx, 1);
+    if (removedCurrent) stopPlaylistPlayback();
+    else if (idx < state.playlistPlayer.currentQueueIndex) state.playlistPlayer.currentQueueIndex -= 1;
+  } else if (action === "up" && idx > 0) {
+    [state.playlistQueue[idx - 1], state.playlistQueue[idx]] = [state.playlistQueue[idx], state.playlistQueue[idx - 1]];
+    if (state.playlistPlayer.currentQueueIndex === idx) state.playlistPlayer.currentQueueIndex = idx - 1;
+    else if (state.playlistPlayer.currentQueueIndex === idx - 1) state.playlistPlayer.currentQueueIndex = idx;
+  } else if (action === "down" && idx < state.playlistQueue.length - 1) {
+    [state.playlistQueue[idx], state.playlistQueue[idx + 1]] = [state.playlistQueue[idx + 1], state.playlistQueue[idx]];
+    if (state.playlistPlayer.currentQueueIndex === idx) state.playlistPlayer.currentQueueIndex = idx + 1;
+    else if (state.playlistPlayer.currentQueueIndex === idx + 1) state.playlistPlayer.currentQueueIndex = idx;
+  } else if (action === "play-idx") {
+    playQueueAt(idx, 0);
+  }
+  scheduleAutosave();
+  renderPlaylistQueue();
+}
+
+function clearPlaylistQueue() {
+  stopPlaylistPlayback();
+  state.playlistQueue = [];
+  state.playlistPlayer.currentQueueIndex = -1;
+  scheduleAutosave();
+  renderPlaylistQueue();
+  updateNowPlayingEmpty();
+}
+
+function playQueueFromStart() {
+  if (!state.playlistQueue.length) return setStatus("Queue is empty.");
+  playQueueAt(0, 0);
+}
+
+function toggleNowPlayPause() {
+  if (state.playlistPlayer.currentQueueIndex < 0) {
+    if (!state.playlistQueue.length) return setStatus("Queue is empty.");
+    playQueueAt(0, 0);
+    return;
+  }
+  if (state.playlistPlayer.isPlaying) pausePlaylistPlayback();
+  else playQueueAt(state.playlistPlayer.currentQueueIndex, state.playlistPlayer.pausedOffsetMs || 0);
+}
+
+function playPreviousQueueTrack() {
+  if (!state.playlistQueue.length) return;
+  const idx = Math.max(0, state.playlistPlayer.currentQueueIndex - 1);
+  playQueueAt(idx, 0);
+}
+
+function playNextQueueTrack() {
+  if (!state.playlistQueue.length) return;
+  const idx = state.playlistPlayer.currentQueueIndex + 1;
+  if (idx >= state.playlistQueue.length) {
+    stopPlaylistPlayback();
+    return;
+  }
+  playQueueAt(idx, 0);
+}
+
+function playQueueAt(queueIndex, offsetMs) {
+  if (queueIndex < 0 || queueIndex >= state.playlistQueue.length) return;
+  stopPlayback();
+  stopPlaylistPlayback(false);
+
+  const trackId = state.playlistQueue[queueIndex];
+  const track = state.playlistLibrary.find((item) => item.id === trackId);
+  if (!track) return;
+  const buffer = state.bufferMap.get(track.bufferId);
+  if (!buffer) return;
+  const safeOffset = Math.max(0, Math.min(offsetMs, track.durationMs));
+
+  const audioContext = getAudioContext();
+  const source = audioContext.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioContext.destination);
+  source.onended = () => {
+    if (!state.playlistPlayer.isPlaying) return;
+    if (state.playlistPlayer.currentSource !== source) return;
+    playNextQueueTrack();
+  };
+  source.start(audioContext.currentTime + 0.02, safeOffset / 1000);
+
+  state.playlistPlayer.isPlaying = true;
+  state.playlistPlayer.currentQueueIndex = queueIndex;
+  state.playlistPlayer.currentSource = source;
+  state.playlistPlayer.startPerfMs = performance.now();
+  state.playlistPlayer.startOffsetMs = safeOffset;
+  state.playlistPlayer.pausedOffsetMs = safeOffset;
+  state.playlistPlayer.durationMs = track.durationMs;
+  startNowProgressTimer();
+  updateNowPlaying(track, queueIndex);
+  renderPlaylistQueue();
+}
+
+function pausePlaylistPlayback() {
+  if (!state.playlistPlayer.isPlaying) return;
+  state.playlistPlayer.pausedOffsetMs = currentNowPositionMs();
+  stopPlaylistPlayback(false);
+  const idx = state.playlistPlayer.currentQueueIndex;
+  if (idx >= 0) {
+    const trackId = state.playlistQueue[idx];
+    const track = state.playlistLibrary.find((item) => item.id === trackId);
+    if (track) updateNowPlaying(track, idx);
+  }
+}
+
+function stopPlaylistPlayback(resetNow = true) {
+  if (state.playlistPlayer.currentSource) {
+    try { state.playlistPlayer.currentSource.onended = null; } catch (_err) {}
+    try { state.playlistPlayer.currentSource.stop(); } catch (_err) {}
+    try { state.playlistPlayer.currentSource.disconnect(); } catch (_err) {}
+  }
+  state.playlistPlayer.currentSource = null;
+  state.playlistPlayer.isPlaying = false;
+  if (state.playlistPlayer.progressTimer) {
+    clearInterval(state.playlistPlayer.progressTimer);
+    state.playlistPlayer.progressTimer = null;
+  }
+  ui.nowPlayBtn.textContent = "Play";
+  if (resetNow) {
+    state.playlistPlayer.currentQueueIndex = -1;
+    state.playlistPlayer.pausedOffsetMs = 0;
+    state.playlistPlayer.durationMs = 0;
+    updateNowPlayingEmpty();
+  }
+}
+
+function currentNowPositionMs() {
+  if (!state.playlistPlayer.isPlaying) return state.playlistPlayer.pausedOffsetMs || 0;
+  const elapsed = performance.now() - state.playlistPlayer.startPerfMs;
+  return Math.min(state.playlistPlayer.durationMs, state.playlistPlayer.startOffsetMs + elapsed);
+}
+
+function seekNowPlaying(ms) {
+  if (state.playlistPlayer.currentQueueIndex < 0) return;
+  const clamped = Math.max(0, Math.min(ms, state.playlistPlayer.durationMs));
+  if (state.playlistPlayer.isPlaying) {
+    playQueueAt(state.playlistPlayer.currentQueueIndex, clamped);
+  } else {
+    state.playlistPlayer.pausedOffsetMs = clamped;
+    const trackId = state.playlistQueue[state.playlistPlayer.currentQueueIndex];
+    const track = state.playlistLibrary.find((item) => item.id === trackId);
+    if (track) updateNowPlaying(track, state.playlistPlayer.currentQueueIndex);
+  }
+}
+
+function startNowProgressTimer() {
+  if (state.playlistPlayer.progressTimer) clearInterval(state.playlistPlayer.progressTimer);
+  state.playlistPlayer.progressTimer = setInterval(() => {
+    if (state.playlistPlayer.currentQueueIndex < 0) return;
+    const trackId = state.playlistQueue[state.playlistPlayer.currentQueueIndex];
+    const track = state.playlistLibrary.find((item) => item.id === trackId);
+    if (!track) return;
+    updateNowPlaying(track, state.playlistPlayer.currentQueueIndex);
+  }, 100);
+}
+
+function updateNowPlaying(track, queueIndex) {
+  const posMs = currentNowPositionMs();
+  ui.nowTitle.textContent = track.name || "Unknown";
+  ui.nowSubtitle.textContent = `Queue ${queueIndex + 1} of ${state.playlistQueue.length}`;
+  ui.nowSeek.max = String(Math.max(0, track.durationMs));
+  ui.nowSeek.value = String(Math.max(0, Math.min(track.durationMs, Math.floor(posMs))));
+  ui.nowPos.textContent = formatClock(posMs);
+  ui.nowDur.textContent = formatClock(track.durationMs);
+  ui.nowPlayBtn.textContent = state.playlistPlayer.isPlaying ? "Pause" : "Play";
+}
+
+function updateNowPlayingEmpty() {
+  ui.nowTitle.textContent = "No track loaded";
+  ui.nowSubtitle.textContent = "Open Playlist mode to add tracks";
+  ui.nowSeek.max = "0";
+  ui.nowSeek.value = "0";
+  ui.nowPos.textContent = "0:00";
+  ui.nowDur.textContent = "0:00";
+  ui.nowPlayBtn.textContent = "Play";
+}
+
+function formatClock(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function escapeHtml(text) {
+  return String(text || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function buildClip(name, bufferId, startMs, spliced) {
@@ -613,6 +963,7 @@ function dbToLinear(db) {
 function startPlayback() {
   const project = currentProject();
   if (!project) return;
+  stopPlaylistPlayback(false);
   const audioContext = getAudioContext();
   stopPlayback();
   const speed = getCurrentSpeed();
@@ -1027,6 +1378,7 @@ function refreshAll() {
   refreshPositionUi();
   refreshTrackVolumeUi();
   refreshClipVolumeUi();
+  renderPlaylistPanels();
   renderTimeline();
 }
 
@@ -1161,7 +1513,10 @@ async function saveAutosave() {
     currentProjectName: state.currentProjectName,
     nextBufferId: state.nextBufferId,
     nextClipId: state.nextClipId,
+    nextPlaylistTrackId: state.nextPlaylistTrackId,
     projects: projectSnapshotPack(),
+    playlistLibrary: state.playlistLibrary,
+    playlistQueue: state.playlistQueue,
     buffers: [],
   };
   for (const [id, buffer] of state.bufferMap.entries()) {
@@ -1197,6 +1552,9 @@ function loadAutosave() {
     state.currentProjectName = parsed.currentProjectName || Object.keys(state.projects)[0] || null;
     state.nextBufferId = Number(parsed.nextBufferId || 1);
     state.nextClipId = Number(parsed.nextClipId || 1);
+    state.nextPlaylistTrackId = Number(parsed.nextPlaylistTrackId || 1);
+    state.playlistLibrary = Array.isArray(parsed.playlistLibrary) ? parsed.playlistLibrary : [];
+    state.playlistQueue = Array.isArray(parsed.playlistQueue) ? parsed.playlistQueue : [];
     const audioContext = getAudioContext();
     const jobs = (parsed.buffers || []).map(async (item) => {
       const arr = base64ToArrayBuffer(item.wavBase64);

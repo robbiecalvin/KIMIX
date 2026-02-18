@@ -15,16 +15,54 @@
     </header>
 
     <section id="panel-now" class="panel">
-      <div class="hero">
-        <h1>KIMIX</h1>
-        <p>Now Playing mode in browser build.</p>
+      <div class="now-wrap">
+        <div class="now-art">
+          <div class="now-glow"></div>
+          <div class="now-initials">KIMIX</div>
+        </div>
+        <div class="now-info">
+          <h1 id="now-title">No track loaded</h1>
+          <p id="now-subtitle">Open Playlist mode to add tracks</p>
+          <div class="now-progress">
+            <input id="now-seek" type="range" min="0" max="0" value="0">
+            <div class="now-time">
+              <span id="now-pos">0:00</span>
+              <span id="now-dur">0:00</span>
+            </div>
+          </div>
+          <div class="now-controls">
+            <button id="now-prev-btn">Prev</button>
+            <button id="now-play-btn">Play</button>
+            <button id="now-next-btn">Next</button>
+          </div>
+        </div>
       </div>
     </section>
 
     <section id="panel-playlist" class="panel">
-      <div class="hero">
-        <h2>Playlist</h2>
-        <p>Use Editor mode for full timeline workflow.</p>
+      <div class="playlist-layout">
+        <div class="playlist-card">
+          <div class="playlist-head">
+            <h2>Library</h2>
+            <label class="file-btn">Add Tracks
+              <input id="playlist-add-input" type="file" accept="audio/*" multiple>
+            </label>
+          </div>
+          <div id="playlist-library" class="list"></div>
+        </div>
+        <div class="playlist-card">
+          <div class="playlist-head">
+            <h2>Queue</h2>
+            <div class="playlist-actions">
+              <button id="queue-clear-btn">Clear</button>
+            </div>
+          </div>
+          <div id="playlist-queue" class="list"></div>
+          <div class="playlist-footer">
+            <button id="queue-play-btn">Play Queue</button>
+            <button id="queue-stop-btn">Stop</button>
+          </div>
+        </div>
       </div>
     </section>
 
