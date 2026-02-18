@@ -3,61 +3,127 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>KIMIX Web</title>
+  <title>KIMIX</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <div id="app">
-    <header class="topbar">
-      <h1>KIMIX</h1>
-      <div class="mode-bar">
-        <button class="mode-btn active" data-mode="now">Now Playing</button>
-        <button class="mode-btn" data-mode="playlist">Playlist</button>
-        <button class="mode-btn" data-mode="editor">Editor</button>
-      </div>
-      <a class="desktop-link" href="../README.md">Desktop (Python) Build</a>
+    <header class="mode-header">
+      <button class="mode-btn active" data-mode="now">Now Playing</button>
+      <button class="mode-btn" data-mode="playlist">Playlist</button>
+      <button class="mode-btn" data-mode="editor">Editor</button>
     </header>
 
-    <main>
-      <section id="now-panel" class="panel active">
-        <div class="panel-card">
-          <h2>Now Playing</h2>
-          <p>Browser mode supports local playback for clips imported in Editor mode.</p>
-        </div>
-      </section>
+    <section id="panel-now" class="panel active">
+      <div class="hero">
+        <h1>KIMIX</h1>
+        <p>Now Playing mode in browser build.</p>
+      </div>
+    </section>
 
-      <section id="playlist-panel" class="panel">
-        <div class="panel-card">
-          <h2>Playlist</h2>
-          <p>Use Editor mode to build and arrange tracks. This tab mirrors desktop structure.</p>
-        </div>
-      </section>
+    <section id="panel-playlist" class="panel">
+      <div class="hero">
+        <h2>Playlist</h2>
+        <p>Use Editor mode for full timeline workflow.</p>
+      </div>
+    </section>
 
-      <section id="editor-panel" class="panel">
-        <div class="editor-toolbar">
-          <button id="new-project-btn">New Project</button>
-          <label class="file-label">
-            Import Audio
-            <input id="audio-input" type="file" accept="audio/*" multiple>
-          </label>
-          <button id="play-btn">Play Mix</button>
-          <button id="stop-btn">Stop</button>
-          <label class="zoom-wrap">Zoom
-            <input id="zoom-input" type="range" min="10" max="320" value="100">
-            <span id="zoom-value">100%</span>
-          </label>
-        </div>
+    <section id="panel-editor" class="panel">
+      <div class="toolbar toolbar-top">
+        <button id="new-project-btn">New Project</button>
+        <label class="file-btn">Open Project
+          <input id="open-project-input" type="file" accept=".kimixweb.json,application/json">
+        </label>
+        <button id="save-project-btn">Save Project As</button>
+        <button id="undo-btn">Undo</button>
+        <button id="redo-btn">Redo</button>
+        <select id="project-select"></select>
+        <label class="file-btn">Add Audio
+          <input id="add-audio-input" type="file" accept="audio/*" multiple>
+        </label>
+        <button id="record-btn" disabled>Record</button>
+        <button id="play-pause-btn">Play</button>
+        <button id="stop-btn">Stop</button>
+        <button id="export-btn">Export</button>
+        <button id="mute-track-btn">Mute/Unmute Row</button>
+      </div>
 
-        <div class="status" id="status-text">Import tracks, then drag clips into Final Product.</div>
+      <div class="transport">
+        <input id="seek-slider" type="range" min="0" max="0" value="0">
+      </div>
 
-        <div class="timeline-shell">
-          <div id="timeline-scroll" class="timeline-scroll">
-            <canvas id="timeline-canvas"></canvas>
-          </div>
+      <div class="grid-controls">
+        <div class="field"><span>Duration:</span><strong id="duration-label">0.00 s</strong></div>
+        <div class="field"><span>Position:</span><strong id="position-label">0.00 s</strong></div>
+
+        <label>Start (s or mm:ss):<input id="start-input" value="0.0"></label>
+        <label>End (s or mm:ss):<input id="end-input" value="0.0"></label>
+
+        <label>Speed:
+          <select id="speed-select">
+            <option value="0.25">0.25x</option>
+            <option value="0.5">0.5x</option>
+            <option value="0.75">0.75x</option>
+            <option value="1" selected>1.0x</option>
+            <option value="1.25">1.25x</option>
+            <option value="1.5">1.5x</option>
+            <option value="1.75">1.75x</option>
+            <option value="2">2.0x</option>
+          </select>
+        </label>
+        <label class="check"><input id="pitch-checkbox" type="checkbox"> Pitch Changes With Speed</label>
+        <label class="check"><input id="fade-checkbox" type="checkbox" checked> Fade Spliced Clips</label>
+        <label>Fade ms:<input id="fade-input" value="40"></label>
+
+        <label>Volume Boost (dB):
+          <select id="boost-select">
+            <option value="0">+0 dB</option>
+            <option value="3">+3 dB</option>
+            <option value="6">+6 dB</option>
+            <option value="9">+9 dB</option>
+            <option value="12">+12 dB</option>
+            <option value="15">+15 dB</option>
+            <option value="18">+18 dB</option>
+          </select>
+        </label>
+        <label class="check"><input id="noise-checkbox" type="checkbox"> Reduce Background Noise</label>
+
+        <button id="reverse-btn">Reverse Selected Clip To New Row</button>
+
+        <label>Track Volume (dB):
+          <input id="track-volume-slider" type="range" min="-24" max="12" value="0">
+          <span id="track-volume-value">+0 dB</span>
+        </label>
+
+        <label>Clip Volume (dB):
+          <input id="clip-volume-slider" type="range" min="-24" max="12" value="0">
+          <span id="clip-volume-value">+0 dB</span>
+        </label>
+
+        <label>Timeline Zoom:
+          <input id="zoom-input" type="range" min="10" max="320" value="100">
+          <span id="zoom-value">100%</span>
+        </label>
+      </div>
+
+      <div id="status-label" class="status">Drag clips across rows into Final Product. Hold Ctrl while dragging to disable snap.</div>
+
+      <div class="toolbar toolbar-ops">
+        <button id="cut-btn">Cut</button>
+        <button id="copy-btn">Copy</button>
+        <button id="paste-btn">Paste</button>
+        <button id="delete-btn">Delete</button>
+        <button id="split-btn">Split</button>
+      </div>
+
+      <div class="timeline-shell">
+        <div id="timeline-scroll" class="timeline-scroll">
+          <canvas id="timeline-canvas"></canvas>
         </div>
-      </section>
-    </main>
+      </div>
+    </section>
   </div>
+
   <script src="./app.js" type="module"></script>
 </body>
 </html>
