@@ -56,6 +56,7 @@ from .timeline import TimelineWidget
 
 class AudioEditor(QMainWindow):
     SPEED_VALUES = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+    FINAL_TRACK_NAME = "Final Product"
 
     def __init__(self):
         super().__init__()
@@ -116,6 +117,7 @@ class AudioEditor(QMainWindow):
         self._export_thread = None
         self._export_worker = None
         self._export_progress = None
+        self._is_closing = False
 
         if PYDUB_IMPORT_ERROR:
             self._set_controls_enabled(False)
@@ -385,7 +387,16 @@ class AudioEditor(QMainWindow):
         self.record_level_bar.setValue(0)
         controls.addWidget(self.record_level_bar, 8, 1, 1, 3)
 
-        self.status_label = QLabel("Drag clips to move. Hold Ctrl while dragging to disable snap.")
+        controls.addWidget(QLabel("Timeline Zoom:"), 9, 0)
+        self.zoom_slider = QSlider(Qt.Horizontal)
+        self.zoom_slider.setRange(10, 320)
+        self.zoom_slider.setValue(100)
+        self.zoom_slider.valueChanged.connect(self._on_zoom_changed)
+        controls.addWidget(self.zoom_slider, 9, 1, 1, 2)
+        self.zoom_value = QLabel("100%")
+        controls.addWidget(self.zoom_value, 9, 3)
+
+        self.status_label = QLabel("Drag clips across rows into Final Product. Hold Ctrl while dragging to disable snap.")
         main.addWidget(self.status_label)
 
         ops = QHBoxLayout()
@@ -422,6 +433,7 @@ class AudioEditor(QMainWindow):
         self.timeline.track_rename_requested.connect(self.rename_track)
         self.timeline.edit_started.connect(self._push_undo_state)
         self.scroll.setWidget(self.timeline)
+        self.timeline.set_zoom_px_per_sec(self.zoom_slider.value())
         self._populate_input_devices()
 
     def _set_controls_enabled(self, enabled: bool):
@@ -453,6 +465,7 @@ class AudioEditor(QMainWindow):
             self.input_device_combo,
             self.monitor_checkbox,
             self.record_level_bar,
+            self.zoom_slider,
             self.cut_btn,
             self.copy_btn,
             self.paste_btn,
@@ -556,6 +569,10 @@ class AudioEditor(QMainWindow):
             self.stop_playback()
             self.start_playback()
 
+    def _on_zoom_changed(self, value: int):
+        self.zoom_value.setText(f"{int(value)}%")
+        self.timeline.set_zoom_px_per_sec(int(value))
+
     @property
     def current_project(self) -> Optional[Project]:
         if not self.current_project_name:
@@ -569,10 +586,47 @@ class AudioEditor(QMainWindow):
         self._clear_mix_cache()
         self._schedule_autosave()
 
+    def _ensure_final_product_track(self, project: Project):
+        if project is None:
+            return
+        final_idx = -1
+        for idx, track in enumerate(project.tracks):
+            if getattr(track, "is_final_product", False) or track.name.strip().lower() == self.FINAL_TRACK_NAME.lower():
+                final_idx = idx
+                break
+        if final_idx < 0:
+            project.tracks.insert(0, Track(name=self.FINAL_TRACK_NAME, is_final_product=True))
+        else:
+            final_track = project.tracks.pop(final_idx)
+            final_track.name = self.FINAL_TRACK_NAME
+            final_track.is_final_product = True
+            project.tracks.insert(0, final_track)
+        for track in project.tracks[1:]:
+            track.is_final_product = False
+
+    def _prune_empty_tracks(self, project: Optional[Project]) -> bool:
+        if project is None:
+            return False
+        before = len(project.tracks)
+        kept_tracks = []
+        for track in project.tracks:
+            if getattr(track, "is_final_product", False):
+                kept_tracks.append(track)
+                continue
+            if track.clips:
+                kept_tracks.append(track)
+        project.tracks = kept_tracks
+        self._ensure_final_product_track(project)
+        return len(project.tracks) != before
+
     def _ensure_track(self, project: Project, index: int) -> Track:
         while len(project.tracks) <= index:
-            project.tracks.append(Track(name=f"Track {len(project.tracks) + 1}"))
+            project.tracks.append(Track(name=self._next_standard_track_name(project)))
         return project.tracks[index]
+
+    def _next_standard_track_name(self, project: Project, suffix: str = "") -> str:
+        number = 1 + sum(1 for track in project.tracks if not getattr(track, "is_final_product", False))
+        return f"Track {number}{suffix}"
 
     def _history_key(self) -> Optional[str]:
         return self.current_project_name
@@ -606,6 +660,7 @@ class AudioEditor(QMainWindow):
         self._suspend_history = True
         try:
             self.projects[key] = prev
+            self._ensure_final_product_track(self.projects[key])
             self.timeline.set_project(self.projects[key])
             self._mark_project_dirty()
             self._refresh_timeline_ui()
@@ -625,6 +680,7 @@ class AudioEditor(QMainWindow):
         self._suspend_history = True
         try:
             self.projects[key] = nxt
+            self._ensure_final_product_track(self.projects[key])
             self.timeline.set_project(self.projects[key])
             self._mark_project_dirty()
             self._refresh_timeline_ui()
@@ -745,11 +801,27 @@ class AudioEditor(QMainWindow):
 
             for project_name, project in self.projects.items():
                 proj_data = {"name": project_name, "tracks": []}
+
+                non_empty_tracks = []
+                final_track = None
                 for track in project.tracks:
+                    is_final = bool(getattr(track, "is_final_product", False)) or track.name.strip().lower() == self.FINAL_TRACK_NAME.lower()
+                    if is_final and final_track is None:
+                        final_track = track
+                        continue
+                    if track.clips:
+                        non_empty_tracks.append(track)
+                if final_track is None:
+                    final_track = Track(name=self.FINAL_TRACK_NAME, is_final_product=True)
+                serial_tracks = [final_track] + non_empty_tracks
+
+                for track in serial_tracks:
+                    is_final_serial = bool(getattr(track, "is_final_product", False)) or track is final_track
                     track_data = {
-                        "name": track.name,
+                        "name": self.FINAL_TRACK_NAME if is_final_serial else track.name,
                         "muted": track.muted,
                         "volume_db": int(getattr(track, "volume_db", 0) or 0),
+                        "is_final_product": is_final_serial,
                         "clips": [],
                     }
                     for clip in track.clips:
@@ -760,7 +832,11 @@ class AudioEditor(QMainWindow):
 
             self._projects_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         except Exception as exc:
-            self.status_label.setText(f"Autosave warning: {exc}")
+            if not self._is_closing:
+                try:
+                    self.status_label.setText(f"Autosave warning: {exc}")
+                except Exception:
+                    pass
 
     def _load_projects_from_disk(self):
         if not self._projects_file.exists():
@@ -778,6 +854,7 @@ class AudioEditor(QMainWindow):
                         name=track_obj.get("name", "Track"),
                         muted=bool(track_obj.get("muted", False)),
                         volume_db=int(track_obj.get("volume_db", 0) or 0),
+                        is_final_product=bool(track_obj.get("is_final_product", False)),
                     )
                     for clip_obj in track_obj.get("clips", []):
                         media_filename = clip_obj.get("media_filename", "")
@@ -804,6 +881,7 @@ class AudioEditor(QMainWindow):
                         )
                         track.clips.append(clip)
                     project.tracks.append(track)
+                self._ensure_final_product_track(project)
                 loaded_projects[project.name] = project
 
             self.projects = loaded_projects
@@ -870,6 +948,7 @@ class AudioEditor(QMainWindow):
                     "name": track.name,
                     "muted": track.muted,
                     "volume_db": int(getattr(track, "volume_db", 0) or 0),
+                    "is_final_product": bool(getattr(track, "is_final_product", False)),
                     "clips": [],
                 }
                 for clip in track.clips:
@@ -914,6 +993,7 @@ class AudioEditor(QMainWindow):
                     name=track_obj.get("name", "Track"),
                     muted=bool(track_obj.get("muted", False)),
                     volume_db=int(track_obj.get("volume_db", 0) or 0),
+                    is_final_product=bool(track_obj.get("is_final_product", False)),
                 )
                 for clip_obj in track_obj.get("clips", []):
                     media_filename = clip_obj.get("media_filename", "")
@@ -943,6 +1023,7 @@ class AudioEditor(QMainWindow):
                     self._persist_clip_media(clip)
                     track.clips.append(clip)
                 project.tracks.append(track)
+            self._ensure_final_product_track(project)
 
             self.projects[project_name] = project
             self._undo_stacks[project_name] = []
@@ -968,7 +1049,9 @@ class AudioEditor(QMainWindow):
             QMessageBox.warning(self, "Duplicate Name", "A project with that name already exists.")
             return
 
-        self.projects[name] = Project(name=name)
+        project = Project(name=name)
+        self._ensure_final_product_track(project)
+        self.projects[name] = project
         self._undo_stacks[name] = []
         self._redo_stacks[name] = []
         self.project_combo.addItem(name)
@@ -988,6 +1071,7 @@ class AudioEditor(QMainWindow):
             return
 
         self.current_project_name = name
+        self._ensure_final_product_track(self.current_project)
         self.timeline.set_project(self.current_project)
         self.current_pos_ms = 0
         self.start_input.setText("0.0")
@@ -1014,6 +1098,7 @@ class AudioEditor(QMainWindow):
         try:
             self._push_undo_state()
             self.stop_playback()
+            self._ensure_final_product_track(project)
             for path in paths:
                 audio = AudioSegment.from_file(path)
                 clip = self._build_clip(
@@ -1026,7 +1111,7 @@ class AudioEditor(QMainWindow):
                     source_out_ms=len(audio),
                     reversed_audio=False,
                 )
-                project.tracks.append(Track(name=f"Track {len(project.tracks) + 1}", clips=[clip]))
+                project.tracks.append(Track(name=self._next_standard_track_name(project), clips=[clip]))
 
             self._mark_project_dirty()
             self.timeline.set_project(project)
@@ -1054,6 +1139,9 @@ class AudioEditor(QMainWindow):
         self._refresh_position_ui()
 
     def _on_project_edited(self):
+        project = self.current_project
+        if self._prune_empty_tracks(project):
+            self.timeline.set_project(project)
         self._mark_project_dirty()
         self._refresh_timeline_ui()
         self._refresh_selected_track_volume()
@@ -1062,6 +1150,9 @@ class AudioEditor(QMainWindow):
     def rename_track(self, track_idx: int):
         project = self.current_project
         if not project or track_idx < 0 or track_idx >= len(project.tracks):
+            return
+        if getattr(project.tracks[track_idx], "is_final_product", False):
+            QMessageBox.information(self, "Final Product Row", "The Final Product row name is fixed.")
             return
 
         current = project.tracks[track_idx].name
@@ -1365,11 +1456,16 @@ class AudioEditor(QMainWindow):
         new_track_index = t_idx + 1
         project.tracks.insert(new_track_index, Track(name=f"Track {new_track_index + 1} Rev", clips=[new_clip]))
 
-        # Re-number track labels to keep names predictable.
-        for idx, existing_track in enumerate(project.tracks, start=1):
+        # Re-number standard tracks while preserving Final Product and Rev labels.
+        next_track_num = 1
+        for existing_track in project.tracks:
+            if getattr(existing_track, "is_final_product", False):
+                existing_track.name = self.FINAL_TRACK_NAME
+                continue
             if "Rev" in existing_track.name:
                 continue
-            existing_track.name = f"Track {idx}"
+            existing_track.name = f"Track {next_track_num}"
+            next_track_num += 1
 
         self._mark_project_dirty()
         self.timeline.set_project(project)
@@ -1482,7 +1578,7 @@ class AudioEditor(QMainWindow):
                 start_ms=max(0, self.current_pos_ms),
                 spliced=False,
             )
-            project.tracks.append(Track(name=f"Track {len(project.tracks) + 1} Mic", clips=[clip], muted=False))
+            project.tracks.append(Track(name=self._next_standard_track_name(project, " Mic"), clips=[clip], muted=False))
             self._mark_project_dirty()
             self.timeline.set_project(project)
             self._refresh_timeline_ui()
@@ -1809,6 +1905,9 @@ class AudioEditor(QMainWindow):
             self.timer.stop()
 
     def _refresh_timeline_ui(self):
+        project = self.current_project
+        if self._prune_empty_tracks(project):
+            self.timeline.set_project(project)
         total = self.timeline.total_duration_ms()
         self.seek_slider.setMaximum(max(0, total))
         self.duration_label.setText(f"Duration: {ms_to_seconds_text(total)} s")
@@ -1829,6 +1928,8 @@ class AudioEditor(QMainWindow):
         self.record_level_bar.setValue(level)
 
     def closeEvent(self, event):
+        self._is_closing = True
+        self._autosave_timer.stop()
         if self._recording:
             self.stop_recording()
         if self._export_worker is not None:

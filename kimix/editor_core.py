@@ -52,6 +52,7 @@ class Track:
     clips: list[AudioClip] = field(default_factory=list)
     muted: bool = False
     volume_db: int = 0
+    is_final_product: bool = False
 
 
 @dataclass

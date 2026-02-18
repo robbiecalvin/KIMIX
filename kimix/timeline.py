@@ -2,7 +2,7 @@ from typing import Optional
 
 from PyQt5.QtCore import QPoint, QRect, Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QFontMetrics, QPainter, QPen
-from PyQt5.QtWidgets import QWidget
+from PyQt5.QtWidgets import QScrollArea, QWidget
 
 from .editor_core import AudioClip, Project, ms_to_seconds_text
 
@@ -19,10 +19,15 @@ class TimelineWidget(QWidget):
     CLIP_HEIGHT = 34
     PX_PER_SEC = 100
     SNAP_THRESHOLD_MS = 250
+    TOP_MARGIN = 10
+    FINAL_CONTAINER_HEIGHT = 78
+    FINAL_INNER_PADDING_Y = 12
+    SECTION_GAP = 10
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.project: Optional[Project] = None
+        self._px_per_sec = float(self.PX_PER_SEC)
         self.playhead_ms = 0
         self.selected_track = -1
         self.selected_clip = -1
@@ -38,7 +43,12 @@ class TimelineWidget(QWidget):
 
     @property
     def px_per_ms(self) -> float:
-        return self.PX_PER_SEC / 1000.0
+        return self._px_per_sec / 1000.0
+
+    def set_zoom_px_per_sec(self, px_per_sec: int):
+        self._px_per_sec = max(8.0, min(800.0, float(px_per_sec)))
+        self._recompute_size()
+        self.update()
 
     def ms_to_x(self, ms: int) -> int:
         return self.HEADER_WIDTH + int(ms * self.px_per_ms)
@@ -70,16 +80,44 @@ class TimelineWidget(QWidget):
     def _recompute_size(self):
         duration = self.total_duration_ms()
         width = self.HEADER_WIDTH + int(duration * self.px_per_ms) + 320
-        height = 220 if not self.project else max(220, (len(self.project.tracks) * self.ROW_HEIGHT) + 20)
+        if not self.project:
+            height = 220
+        else:
+            has_final = bool(self.project.tracks and getattr(self.project.tracks[0], "is_final_product", False))
+            if has_final:
+                non_final_count = max(0, len(self.project.tracks) - 1)
+                content_h = self.TOP_MARGIN + self.FINAL_CONTAINER_HEIGHT + self.SECTION_GAP + (non_final_count * self.ROW_HEIGHT) + 20
+            else:
+                content_h = (len(self.project.tracks) * self.ROW_HEIGHT) + 20
+            height = max(220, content_h)
         self.setMinimumSize(width, height)
         self.resize(width, height)
+
+    def _tracks_start_y(self) -> int:
+        has_final = bool(self.project and self.project.tracks and getattr(self.project.tracks[0], "is_final_product", False))
+        if has_final:
+            return self.TOP_MARGIN + self.FINAL_CONTAINER_HEIGHT + self.SECTION_GAP
+        return self.TOP_MARGIN
+
+    def _row_rect_for_track(self, track_idx: int) -> QRect:
+        if not self.project or track_idx < 0 or track_idx >= len(self.project.tracks):
+            return QRect()
+        has_final = bool(self.project.tracks and getattr(self.project.tracks[0], "is_final_product", False))
+        if has_final and track_idx == 0:
+            row_top = self.TOP_MARGIN + self.FINAL_INNER_PADDING_Y
+        elif has_final:
+            row_top = self._tracks_start_y() + ((track_idx - 1) * self.ROW_HEIGHT)
+        else:
+            row_top = self.TOP_MARGIN + (track_idx * self.ROW_HEIGHT)
+        return QRect(0, row_top, self.width(), self.ROW_HEIGHT)
 
     def _clip_at_pos(self, pos: QPoint) -> tuple[int, int]:
         if not self.project:
             return -1, -1
 
         for t_idx, track in enumerate(self.project.tracks):
-            row_top = t_idx * self.ROW_HEIGHT + 10
+            row_rect = self._row_rect_for_track(t_idx)
+            row_top = row_rect.top()
             for c_idx, clip in enumerate(track.clips):
                 x1 = self.ms_to_x(clip.start_ms)
                 x2 = self.ms_to_x(clip.end_ms)
@@ -92,10 +130,32 @@ class TimelineWidget(QWidget):
     def _row_at_pos(self, pos: QPoint) -> int:
         if not self.project:
             return -1
-        row_idx = int((pos.y() - 10) / self.ROW_HEIGHT)
-        if 0 <= row_idx < len(self.project.tracks):
-            return row_idx
+        for t_idx in range(len(self.project.tracks)):
+            if self._row_rect_for_track(t_idx).contains(pos):
+                return t_idx
         return -1
+
+    def _find_scroll_area(self) -> Optional[QScrollArea]:
+        parent = self.parentWidget()
+        while parent is not None:
+            if isinstance(parent, QScrollArea):
+                return parent
+            parent = parent.parentWidget()
+        return None
+
+    def _auto_scroll_horiz(self, cursor_x: int):
+        area = self._find_scroll_area()
+        if area is None:
+            return
+        bar = area.horizontalScrollBar()
+        left = bar.value()
+        right = left + area.viewport().width()
+        edge_threshold = 44
+        step = max(12, int(area.viewport().width() * 0.06))
+        if cursor_x - left < edge_threshold:
+            bar.setValue(max(bar.minimum(), left - step))
+        elif right - cursor_x < edge_threshold:
+            bar.setValue(min(bar.maximum(), left + step))
 
     def _draw_waveform(self, painter: QPainter, clip_rect: QRect, clip: AudioClip, muted: bool):
         if not clip.waveform_preview or len(clip.waveform_preview) < 2:
@@ -126,16 +186,30 @@ class TimelineWidget(QWidget):
             painter.drawText(24, 42, "Create a project, then add audio clips.")
             return
 
+        has_final = bool(self.project.tracks and getattr(self.project.tracks[0], "is_final_product", False))
+        if has_final:
+            final_container_rect = QRect(0, self.TOP_MARGIN, self.width(), self.FINAL_CONTAINER_HEIGHT)
+            painter.fillRect(final_container_rect, QColor("#121f35"))
+            painter.setPen(QPen(QColor("#3c537b"), 1))
+            painter.drawRect(final_container_rect.adjusted(0, 0, -1, -1))
+            painter.setPen(QColor("#d9e6ff"))
+            painter.drawText(QRect(14, self.TOP_MARGIN + 2, 240, 16), Qt.AlignLeft | Qt.AlignVCenter, "Final Mix")
+
         for t_idx, track in enumerate(self.project.tracks):
-            row_top = t_idx * self.ROW_HEIGHT + 10
-            row_rect = QRect(0, row_top, self.width(), self.ROW_HEIGHT)
-            if track.muted:
+            row_rect = self._row_rect_for_track(t_idx)
+            row_top = row_rect.top()
+            if getattr(track, "is_final_product", False):
+                bg = QColor("#1a2337") if t_idx % 2 == 0 else QColor("#162033")
+            elif track.muted:
                 bg = QColor("#0c1018") if t_idx % 2 == 0 else QColor("#0b0f16")
             else:
                 bg = QColor("#111a2b") if t_idx % 2 == 0 else QColor("#0f1726")
             painter.fillRect(row_rect, bg)
 
-            painter.setPen(QColor("#f4efe2") if not track.muted else QColor("#98a6ba"))
+            if getattr(track, "is_final_product", False):
+                painter.setPen(QColor("#ffecc4"))
+            else:
+                painter.setPen(QColor("#f4efe2") if not track.muted else QColor("#98a6ba"))
             track_label = f"{track.name} [MUTED]" if track.muted else track.name
             text_rect = QRect(10, row_top + 12, self.HEADER_WIDTH - 18, self.ROW_HEIGHT - 16)
             fm = QFontMetrics(painter.font())
@@ -183,6 +257,11 @@ class TimelineWidget(QWidget):
 
         row_idx = self._row_at_pos(event.pos())
         if event.x() <= self.HEADER_WIDTH and row_idx >= 0:
+            if getattr(self.project.tracks[row_idx], "is_final_product", False):
+                self.selected_track = row_idx
+                self.selected_clip = -1
+                self.update()
+                return
             self.edit_started.emit()
             self._dragging_row = True
             self._row_drag_track = row_idx
@@ -213,7 +292,10 @@ class TimelineWidget(QWidget):
 
     def mouseMoveEvent(self, event):
         if self._dragging_row and self.project:
+            self._auto_scroll_horiz(event.x())
             target_row = self._row_at_pos(event.pos())
+            if target_row == 0 and self.project.tracks and getattr(self.project.tracks[0], "is_final_product", False):
+                target_row = 1
             if target_row >= 0 and target_row != self._row_drag_track:
                 tracks = self.project.tracks
                 moved_track = tracks.pop(self._row_drag_track)
@@ -227,6 +309,26 @@ class TimelineWidget(QWidget):
 
         if not self._dragging or not self.project:
             return
+
+        self._auto_scroll_horiz(event.x())
+        target_row = self._row_at_pos(event.pos())
+        if target_row >= 0 and target_row != self._drag_track:
+            source_idx = self._drag_track
+            source_track = self.project.tracks[self._drag_track]
+            if 0 <= self._drag_clip < len(source_track.clips):
+                moved_clip = source_track.clips.pop(self._drag_clip)
+                source_was_emptied = len(source_track.clips) == 0 and not getattr(source_track, "is_final_product", False)
+                dest_track = self.project.tracks[target_row]
+                dest_track.clips.append(moved_clip)
+                self._drag_track = target_row
+                self._drag_clip = len(dest_track.clips) - 1
+                if source_was_emptied:
+                    if self._drag_track > source_idx:
+                        self._drag_track -= 1
+                    self.project.tracks.remove(source_track)
+                self.selected_track = self._drag_track
+                self.selected_clip = self._drag_clip
+                self.selection_changed.emit(self.selected_track, self.selected_clip)
 
         track = self.project.tracks[self._drag_track]
         if not (0 <= self._drag_clip < len(track.clips)):
