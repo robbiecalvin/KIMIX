@@ -1,0 +1,137 @@
+:root {
+  --bg: #040a18;
+  --panel: #0a1220;
+  --panel-2: #101b2e;
+  --line: #2a3954;
+  --ink: #f8f4e8;
+  --muted: #98a6ba;
+  --accent: #d18d53;
+  --final: #1a2337;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at 20% 0%, #111f39, var(--bg) 45%);
+  color: var(--ink);
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+}
+
+.topbar h1 {
+  margin: 0;
+  letter-spacing: 0.12em;
+}
+
+.mode-bar {
+  display: flex;
+  gap: 8px;
+}
+
+button,
+.file-label {
+  border: 1px solid rgba(233, 236, 255, 0.22);
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: #0a1430;
+  color: #e9ecff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mode-btn.active {
+  background: rgba(84, 117, 255, 0.36);
+}
+
+.desktop-link {
+  margin-left: auto;
+  color: #d9e6ff;
+  text-decoration: none;
+}
+
+main {
+  padding: 0 18px 18px;
+}
+
+.panel {
+  display: none;
+}
+
+.panel.active {
+  display: block;
+}
+
+.panel-card {
+  border: 1px solid rgba(84, 117, 255, 0.22);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 22px;
+}
+
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.file-label input {
+  display: none;
+}
+
+.zoom-wrap {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#zoom-input {
+  width: 180px;
+}
+
+.status {
+  margin: 10px 0;
+  font-weight: 600;
+}
+
+.timeline-shell {
+  border: 1px solid rgba(84, 117, 255, 0.22);
+  border-radius: 12px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.timeline-scroll {
+  width: 100%;
+  height: 460px;
+  overflow: auto;
+}
+
+#timeline-canvas {
+  display: block;
+  background: #0b1220;
+}
+
+@media (max-width: 840px) {
+  .zoom-wrap {
+    margin-left: 0;
+  }
+
+  .timeline-scroll {
+    height: 60vh;
+  }
+}

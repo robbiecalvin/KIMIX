@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>KIMIX Web</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <h1>KIMIX</h1>
+      <div class="mode-bar">
+        <button class="mode-btn active" data-mode="now">Now Playing</button>
+        <button class="mode-btn" data-mode="playlist">Playlist</button>
+        <button class="mode-btn" data-mode="editor">Editor</button>
+      </div>
+      <a class="desktop-link" href="../README.md">Desktop (Python) Build</a>
+    </header>
+
+    <main>
+      <section id="now-panel" class="panel active">
+        <div class="panel-card">
+          <h2>Now Playing</h2>
+          <p>Browser mode supports local playback for clips imported in Editor mode.</p>
+        </div>
+      </section>
+
+      <section id="playlist-panel" class="panel">
+        <div class="panel-card">
+          <h2>Playlist</h2>
+          <p>Use Editor mode to build and arrange tracks. This tab mirrors desktop structure.</p>
+        </div>
+      </section>
+
+      <section id="editor-panel" class="panel">
+        <div class="editor-toolbar">
+          <button id="new-project-btn">New Project</button>
+          <label class="file-label">
+            Import Audio
+            <input id="audio-input" type="file" accept="audio/*" multiple>
+          </label>
+          <button id="play-btn">Play Mix</button>
+          <button id="stop-btn">Stop</button>
+          <label class="zoom-wrap">Zoom
+            <input id="zoom-input" type="range" min="10" max="320" value="100">
+            <span id="zoom-value">100%</span>
+          </label>
+        </div>
+
+        <div class="status" id="status-text">Import tracks, then drag clips into Final Product.</div>
+
+        <div class="timeline-shell">
+          <div id="timeline-scroll" class="timeline-scroll">
+            <canvas id="timeline-canvas"></canvas>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="./app.js" type="module"></script>
+</body>
+</html>

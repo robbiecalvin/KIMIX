@@ -130,6 +130,49 @@ Windows PowerShell:
 
 Build output is generated in `dist/` via PyInstaller.
 
+## Browser Build (HTML/CSS/JS)
+
+KIMIX now includes a browser implementation in:
+
+- `web/index.html`
+- `web/styles.css`
+- `web/app.js`
+
+What it supports:
+
+- Same 3-mode shell (Now Playing / Playlist / Editor)
+- Multi-row editor timeline
+- Dedicated top `Final Product` row in its own container
+- Import local audio, draggable clips across rows, zoom, and edge auto-scroll while dragging
+- Auto-removal of empty non-final rows
+- In-browser local mix playback
+
+Run locally:
+
+```bash
+cd web
+python3 -m http.server 8080
+# open http://localhost:8080
+```
+
+## Deploy Browser Build To GitHub Pages
+
+Workflow file:
+
+- `.github/workflows/deploy-web.yml`
+
+This deploys `web/` to GitHub Pages on push to `main`.
+
+One-time repo setup in GitHub:
+
+1. Open repository `Settings` -> `Pages`
+2. Set source to `GitHub Actions`
+3. Push to `main` and wait for workflow `Deploy KIMIX Web`
+
+Live URL will be:
+
+- `https://<your-github-username>.github.io/<repo-name>/`
+
 ## First Run Diagnostics
 
 Use the `System Check` button in the app header to validate:
