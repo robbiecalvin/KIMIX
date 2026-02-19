@@ -9,13 +9,13 @@
 <body>
   <div id="app">
     <header class="mode-header">
-      <button class="mode-btn" data-mode="now">Now Playing</button>
+      <button class="mode-btn active" data-mode="now">Now Playing</button>
       <button class="mode-btn" data-mode="playlist">Playlist</button>
-      <button class="mode-btn active" data-mode="editor">Editor</button>
+      <button class="mode-btn" data-mode="editor">Editor</button>
       <button id="system-check-btn" class="sys-btn">System Check</button>
     </header>
 
-    <section id="panel-now" class="panel">
+    <section id="panel-now" class="panel active">
       <div class="now-wrap now-style">
         <div class="now-head">
           <h1>KIMIX</h1>
@@ -110,7 +110,7 @@
       </div>
     </section>
 
-    <section id="panel-editor" class="panel active">
+    <section id="panel-editor" class="panel">
       <div class="toolbar toolbar-top">
         <button id="new-project-btn">New Project</button>
         <label class="file-btn">Open Project
