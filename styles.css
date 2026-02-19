@@ -32,6 +32,7 @@ body {
   gap: 8px;
   margin-bottom: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 button,
@@ -127,6 +128,7 @@ button:disabled {
   min-height: 76vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .now-head {
@@ -190,6 +192,7 @@ button:disabled {
   justify-content: center;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .now-controls button,
@@ -202,10 +205,13 @@ button:disabled {
   align-items: center;
   gap: 6px;
   color: #d8d8ea;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .now-controls input[type="range"] {
-  width: 160px;
+  width: min(160px, 38vw);
+  min-width: 0;
 }
 
 .playlist-frame {
@@ -506,12 +512,43 @@ input[type="range"] {
     padding: 12px;
   }
 
+  .mode-header {
+    gap: 6px;
+  }
+
+  .sys-btn {
+    margin-left: 0;
+  }
+
   .now-center h2 {
     font-size: 30px;
   }
 
   .now-center p {
     font-size: 18px;
+  }
+
+  .now-foot {
+    flex-direction: column;
+    gap: 6px;
+    font-size: 14px;
+  }
+
+  .now-controls {
+    justify-content: flex-start;
+    gap: 6px;
+  }
+
+  .now-controls > * {
+    max-width: 100%;
+  }
+
+  .now-controls label {
+    flex: 1 1 100%;
+  }
+
+  .now-controls input[type="range"] {
+    width: 100%;
   }
 
   .queue-wrap {
