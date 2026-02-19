@@ -535,20 +535,29 @@ input[type="range"] {
   }
 
   .now-controls {
-    justify-content: flex-start;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
     gap: 6px;
+    width: 100%;
   }
 
   .now-controls > * {
     max-width: 100%;
+    width: 100%;
+    justify-content: center;
   }
 
   .now-controls label {
-    flex: 1 1 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
   }
 
   .now-controls input[type="range"] {
-    width: 100%;
+    width: min(280px, 92vw);
   }
 
   .queue-wrap {
