@@ -56,43 +56,40 @@
 <body>
   <div id="app">
     <header class="mode-header">
+      <a class="brand" href="./" aria-label="KIMIX home">K<span>ı</span>MIX<span class="brand-dot">●</span></a>
+      <nav aria-label="Workspace">
       <button class="mode-btn active" data-mode="now">Now Playing</button>
       <button class="mode-btn" data-mode="playlist">Playlist</button>
       <button class="mode-btn" data-mode="editor">Editor</button>
+      </nav>
       <button id="system-check-btn" class="sys-btn">System Check</button>
     </header>
 
     <section id="panel-now" class="panel active">
       <div class="now-wrap now-style">
         <div class="now-head">
-          <h1>KIMIX</h1>
-          <div>Browse · Favorites</div>
+          <div class="eyebrow">YOUR PERSONAL SOUND SPACE</div>
+          <span class="local-badge">● Local & private</span>
         </div>
+        <div class="sound-art" aria-hidden="true"><div class="sound-orbit orbit-one"></div><div class="sound-orbit orbit-two"></div><div class="sound-core">k<span>ı</span></div><canvas id="music-waves"></canvas></div>
         <div class="now-center">
           <div class="now-kicker">Now Playing</div>
           <h2 id="now-title">No track loaded</h2>
-          <p id="now-subtitle">Open Playlist mode to add tracks</p>
+          <p id="now-subtitle">Your next favorite moment starts here.</p>
+          <button id="browse-tracks-btn" class="browse-btn">＋ Add your music</button>
         </div>
         <div class="now-progress-card">
-          <input id="now-seek" type="range" min="0" max="0" value="0">
+          <input id="now-seek" aria-label="Track position" type="range" min="0" max="0" value="0">
         </div>
         <div class="now-foot">
           <div><span id="now-pos">0:00</span> / <span id="now-dur">0:00</span></div>
-          <div>Relax and enjoy the music</div>
+          <div id="listening-state">MAKE ROOM FOR THE MUSIC</div>
         </div>
         <div class="now-controls">
-          <button id="now-prev-btn">⏮</button>
+          <button id="now-prev-btn" aria-label="Previous track">‹</button>
           <button id="now-play-btn">⏯</button>
-          <button id="now-next-btn">⏭</button>
-          <label>Sleep
-            <select>
-              <option>0 min</option>
-              <option>15 min</option>
-              <option>30 min</option>
-            </select>
-          </label>
-          <button>Set</button>
-          <input type="range" min="0" max="100" value="80">
+          <button id="now-next-btn" aria-label="Next track">›</button>
+          <label class="volume-control">Volume <input id="listening-volume" aria-label="Playback volume" type="range" min="0" max="100" value="80"></label>
         </div>
       </div>
     </section>

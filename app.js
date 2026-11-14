@@ -553,7 +553,7 @@ function playQueueAt(queueIndex, offsetMs) {
   const audioContext = getAudioContext();
   const source = audioContext.createBufferSource();
   source.buffer = buffer;
-  source.connect(audioContext.destination);
+  source.connect(getMusicOutput());
   source.onended = () => {
     if (!state.playlistPlayer.isPlaying) return;
     if (state.playlistPlayer.currentSource !== source) return;
@@ -653,7 +653,7 @@ function updateNowPlaying(track, queueIndex) {
 function updateNowPlayingEmpty() {
   ui.nowTitle.textContent = "No track loaded";
   if (ui.nowTitleMini) ui.nowTitleMini.textContent = "No track loaded";
-  ui.nowSubtitle.textContent = "Open Playlist mode to add tracks";
+  ui.nowSubtitle.textContent = "Your next favorite moment starts here.";
   ui.nowSeek.max = "0";
   ui.nowSeek.value = "0";
   ui.nowPos.textContent = "0:00";
@@ -1009,7 +1009,7 @@ function startPlayback() {
       gain.gain.value = dbToLinear(totalDb);
 
       source.connect(gain);
-      gain.connect(audioContext.destination);
+      gain.connect(getMusicOutput());
 
       if (ui.fadeCheckbox.checked && clip.spliced && fadeMs > 0) {
         const t0 = now + (delayMs / 1000);
@@ -1167,6 +1167,7 @@ function writeString(view, offset, value) {
 
 function getAudioContext() {
   if (!state.audioContext) state.audioContext = new AudioContext();
+  if (state.audioContext.state === "suspended") state.audioContext.resume();
   return state.audioContext;
 }
 
@@ -1687,3 +1688,63 @@ function reverseBuffer(source) {
   }
   return out;
 }
+
+// One shared output keeps the visualizer in sync with playlist and editor audio.
+let musicOutput, musicAnalyser;
+function getMusicOutput() {
+  if (!musicOutput) {
+    const context = getAudioContext();
+    musicOutput = context.createGain();
+    musicOutput.gain.value = Number(document.getElementById("listening-volume").value) / 100;
+    musicAnalyser = context.createAnalyser();
+    musicAnalyser.fftSize = 256;
+    musicAnalyser.smoothingTimeConstant = 0.82;
+    musicOutput.connect(musicAnalyser);
+    musicAnalyser.connect(context.destination);
+  }
+  return musicOutput;
+}
+document.getElementById("listening-volume").addEventListener("input", (event) => {
+  if (musicOutput) musicOutput.gain.setTargetAtTime(Number(event.target.value) / 100, state.audioContext.currentTime, 0.03);
+});
+document.getElementById("browse-tracks-btn").addEventListener("click", () => {
+  document.querySelector('[data-mode="playlist"]').click();
+  ui.playlistAddInput.click();
+});
+ui.modeButtons.forEach(button => {
+  button.setAttribute("aria-pressed", String(button.classList.contains("active")));
+  button.addEventListener("click", () => ui.modeButtons.forEach(item => item.setAttribute("aria-pressed", String(item === button))));
+});
+const waveCanvas = document.getElementById("music-waves");
+const waveContext = waveCanvas.getContext("2d");
+const waveData = new Uint8Array(128);
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+function drawMusicWaves() {
+  const playing = state.playlistPlayer.isPlaying || state.playback.isPlaying;
+  document.body.classList.toggle("music-playing", playing);
+  document.getElementById("listening-state").textContent = playing ? "IN THE MOMENT · PLAYING" : "MAKE ROOM FOR THE MUSIC";
+  ui.nowPlayBtn.setAttribute("aria-label", state.playlistPlayer.isPlaying ? "Pause music" : "Play music");
+  if (!document.hidden && ui.panels.now.classList.contains("active")) {
+    const width = waveCanvas.clientWidth, height = waveCanvas.clientHeight;
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    if (waveCanvas.width !== Math.round(width * ratio) || waveCanvas.height !== Math.round(height * ratio)) {
+      waveCanvas.width = Math.round(width * ratio); waveCanvas.height = Math.round(height * ratio);
+    }
+    waveContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+    waveContext.clearRect(0, 0, width, height);
+    if (musicAnalyser && playing && !reduceMotion.matches) musicAnalyser.getByteFrequencyData(waveData);
+    else waveData.fill(0);
+    const count = 64, step = width / count;
+    for (let i = 0; i < count; i++) {
+      const envelope = Math.sin(i / (count - 1) * Math.PI);
+      const magnitude = waveData[Math.floor(Math.abs(i - count / 2) * 2)];
+      const barHeight = 3 + envelope * (8 + magnitude / 255 * height * 0.85);
+      waveContext.fillStyle = `rgba(159, 243, 200, ${0.25 + magnitude / 510})`;
+      waveContext.beginPath();
+      waveContext.roundRect(i * step, (height - barHeight) / 2, Math.max(2, step - 4), barHeight, 3);
+      waveContext.fill();
+    }
+  }
+  setTimeout(drawMusicWaves, reduceMotion.matches ? 250 : 40);
+}
+drawMusicWaves();
