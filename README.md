@@ -220,3 +220,7 @@ python -m kimix
 - If MP3 or some formats fail to load/export, verify `ffmpeg` is installed and on `PATH`.
 - App data is stored in `~/.kimix` (library, playback session, editor projects, history).
 - Optional featured catalog source is read from `featured_catalog.json`.
+
+## Engineering verification
+
+The Python/PyQt5 desktop application and web interface are separate runtime surfaces. Validate dependency availability, import/export, cancellation, playback and undo/redo using disposable audio files. The web deployment workflow does not establish desktop compatibility.
